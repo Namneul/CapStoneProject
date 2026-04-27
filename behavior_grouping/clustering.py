@@ -21,18 +21,28 @@ class ClusterResult:
     explained_variance: float   # PCA가 설명하는 분산 비율
 
 def find_optimal_k(X_pca: np.ndarray, k_min: int = 2, k_max: int = 6) -> int:
-    """Elbow method로 최적 클러스터 수 결정"""
+    k_range = list(range(k_min, min(k_max + 1, X_pca.shape[0])))
+    if len(k_range) == 1:
+        return k_range[0]
+
     inertias = []
-    k_range = range(k_min, min(k_max + 1, X_pca.shape[0]))
     for k in k_range:
         km = KMeans(n_clusters=k, random_state=42, n_init=10)
         km.fit(X_pca)
         inertias.append(km.inertia_)
 
-    # 기울기 변화가 가장 큰 지점(elbow) 찾기
-    deltas = [inertias[i] - inertias[i+1] for i in range(len(inertias)-1)]
-    elbow_idx = deltas.index(max(deltas))
-    optimal_k = k_range[elbow_idx + 1]
+    # 정규화된 기울기 변화율로 elbow 찾기
+    inertias_norm = [v / inertias[0] for v in inertias]
+    deltas = [inertias_norm[i] - inertias_norm[i+1] for i in range(len(inertias_norm)-1)]
+    second_deltas = [deltas[i] - deltas[i+1] for i in range(len(deltas)-1)]
+
+    # 기울기가 가장 크게 꺾이는 지점
+    if second_deltas:
+        elbow_idx = second_deltas.index(max(second_deltas)) + 1
+    else:
+        elbow_idx = deltas.index(max(deltas))
+
+    optimal_k = k_range[elbow_idx]
     print(f"최적 클러스터 수: {optimal_k} (inertias: {[round(v,1) for v in inertias]})")
     return optimal_k
 

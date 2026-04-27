@@ -64,13 +64,20 @@ def build_output(
         if labels[i] in valid_cluster_ids
     ]
 
+    # frame_sequence 스무딩 부분을 이렇게 교체
     frame_sequence = []
     for i, frame in enumerate(raw_sequence):
-        if 0 < i < len(raw_sequence) - 1:
-            prev_id = raw_sequence[i - 1]["cluster_id"]
-            next_id = raw_sequence[i + 1]["cluster_id"]
-            if frame["cluster_id"] != prev_id and prev_id == next_id:
-                frame = {"timestamp": frame["timestamp"], "cluster_id": prev_id}
+        if 1 < i < len(raw_sequence) - 2:
+            window = [
+                raw_sequence[i - 2]["cluster_id"],
+                raw_sequence[i - 1]["cluster_id"],
+                frame["cluster_id"],
+                raw_sequence[i + 1]["cluster_id"],
+                raw_sequence[i + 2]["cluster_id"],
+            ]
+            majority = max(set(window), key=window.count)
+            if window.count(majority) >= 3:
+                frame = {"timestamp": frame["timestamp"], "cluster_id": majority}
         frame_sequence.append(frame)
 
     return {

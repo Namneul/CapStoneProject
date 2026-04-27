@@ -1,0 +1,287 @@
+{
+  "total_duration": 25.32,
+  "n_clusters": 3,
+  "pca_explained_variance": 0.993,
+  "clusters": [
+    {
+      "cluster_id": 2,
+      "ratio": 0.52,
+      "timestamps": [
+        [
+          0.07,
+          8.39
+        ],
+        [
+          16.66,
+          18.66
+        ],
+        [
+          20.73,
+          25.39
+        ]
+      ],
+      "duration_seconds": 14.99,
+      "feature_means": {
+        "face_detected_ratio": 1.0,
+        "pose_detected_ratio": 1.0,
+        "left_hand_detected_ratio": 0.538,
+        "right_hand_detected_ratio": 0.115
+      },
+      "representative_frames": [
+        "result/frames/cluster_2_frame_0.07.jpg",
+        "result/frames/cluster_2_frame_6.29.jpg",
+        "result/frames/cluster_2_frame_20.73.jpg"
+      ]
+    },
+    {
+      "cluster_id": 1,
+      "ratio": 0.34,
+      "timestamps": [
+        [
+          8.89,
+          17.66
+        ]
+      ],
+      "duration_seconds": 8.77,
+      "feature_means": {
+        "face_detected_ratio": 1.0,
+        "pose_detected_ratio": 1.0,
+        "left_hand_detected_ratio": 0.824,
+        "right_hand_detected_ratio": 0.588
+      },
+      "representative_frames": [
+        "result/frames/cluster_1_frame_8.89.jpg",
+        "result/frames/cluster_1_frame_11.49.jpg",
+        "result/frames/cluster_1_frame_14.06.jpg"
+      ]
+    },
+    {
+      "cluster_id": 0,
+      "ratio": 0.14,
+      "timestamps": [
+        [
+          0.61,
+          3.19
+        ],
+        [
+          19.16,
+          20.23
+        ]
+      ],
+      "duration_seconds": 3.64,
+      "feature_means": {
+        "face_detected_ratio": 1.0,
+        "pose_detected_ratio": 1.0,
+        "left_hand_detected_ratio": 0.286,
+        "right_hand_detected_ratio": 0.0
+      },
+      "representative_frames": [
+        "result/frames/cluster_0_frame_0.61.jpg",
+        "result/frames/cluster_0_frame_2.65.jpg",
+        "result/frames/cluster_0_frame_19.16.jpg"
+      ]
+    }
+  ],
+  "frame_sequence": [
+    {
+      "timestamp": 0.07,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 0.61,
+      "cluster_id": 0
+    },
+    {
+      "timestamp": 1.12,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 1.62,
+      "cluster_id": 0
+    },
+    {
+      "timestamp": 2.12,
+      "cluster_id": 0
+    },
+    {
+      "timestamp": 2.65,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 3.19,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 3.69,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 4.22,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 4.72,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 5.25,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 5.76,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 6.29,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 6.82,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 7.35,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 7.86,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 8.39,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 8.89,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 9.43,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 9.96,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 10.46,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 10.99,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 11.49,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 11.99,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 12.49,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 13.02,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 13.53,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 14.06,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 14.59,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 15.09,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 15.59,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 16.13,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 16.66,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 17.16,
+      "cluster_id": 1
+    },
+    {
+      "timestamp": 17.66,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 18.16,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 18.66,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 19.16,
+      "cluster_id": 0
+    },
+    {
+      "timestamp": 19.69,
+      "cluster_id": 0
+    },
+    {
+      "timestamp": 20.23,
+      "cluster_id": 0
+    },
+    {
+      "timestamp": 20.73,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 21.23,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 21.76,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 22.26,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 22.79,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 23.33,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 23.86,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 24.36,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 24.86,
+      "cluster_id": 2
+    },
+    {
+      "timestamp": 25.39,
+      "cluster_id": 2
+    }
+  ]
+}
