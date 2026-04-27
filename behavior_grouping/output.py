@@ -16,6 +16,7 @@ def build_output(
     result: ClusterResult,
     timestamps: List[float],
     raw_vectors: List[np.ndarray],
+    representative_frames: dict = {},
 ) -> dict:
     labels = result.labels
     n = len(labels)
@@ -48,6 +49,7 @@ def build_output(
             "timestamps": [[round(s, 2), round(e, 2)] for s, e in segments],
             "duration_seconds": duration,
             "feature_means": feat_means,
+            "representative_frames": representative_frames.get(cid, []),
         })
 
     clusters.sort(key=lambda x: x["ratio"], reverse=True)
