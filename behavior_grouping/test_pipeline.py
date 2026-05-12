@@ -43,7 +43,7 @@ timestamps = [i * 0.5 for i in range(120)]  # 0.5초 간격, 총 60초
 print(f"벡터 수: {len(vectors)}, 차원: {vectors[0].shape[0]}")
 
 # 클러스터링
-result = run_clustering(vectors, n_clusters=3, pca_components=30)
+result = run_clustering(vectors, pca_components=30)
 print(f"PCA 설명 분산: {result.explained_variance:.3f}")
 print(f"클러스터 분포: {np.bincount(result.labels)}")
 
@@ -53,7 +53,7 @@ print("\n=== Orchestrator 출력 JSON ===")
 print(to_json_string(output))
 
 # 검증
-assert len(output["clusters"]) == 3
+assert len(output["clusters"]) >= 1
 assert abs(sum(c["ratio"] for c in output["clusters"]) - 1.0) < 0.01
 assert all(len(c["timestamps"]) > 0 for c in output["clusters"])
 print("\n모든 검증 통과")

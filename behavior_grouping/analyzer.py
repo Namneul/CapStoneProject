@@ -2,7 +2,7 @@
 analyzer.py
 웹캠 영상을 받아 비언어적 표현 패턴을 분석하고 JSON을 반환하는 메인 파이프라인
 """
-
+import threading
 from typing import Optional, Union, List
 import cv2
 import os
@@ -10,21 +10,21 @@ import time
 import numpy as np
 import mediapipe as mp
 
-from landmarks import extract_normalized_vector
-from clustering import run_clustering
-from output import build_output, to_json_string
+from behavior_grouping.landmarks import extract_normalized_vector, compute_ear, get_raw_nose_y
+from behavior_grouping.clustering import run_clustering
+from behavior_grouping.output import build_output, to_json_string
 
 mp_holistic = mp.solutions.holistic
 
 
 def analyze_video(
     source: Union[int, str] = 0,
-    n_clusters: Optional[int] = None,
     pca_components: int = 30,
     sample_interval: float = 0.5,
     duration: Optional[float] = None,
     output_dir: str = "result",
-    frames_per_cluster: int = 3,    # 클러스터당 저장할 대표 프레임 수
+    frames_per_cluster: int = 3,
+    stop_event: Optional[threading.Event] = None,
 ) -> dict:
     vectors = []
     timestamps = []
@@ -39,6 +39,9 @@ def analyze_video(
     start_time = time.time()
     last_sample_time = -sample_interval
     prev_vector = None
+    blink_count = 0
+    prev_blink = 0.0
+    prev_nose_y = 0.0
 
     print("분석 시작 — 'q' 키를 누르면 종료합니다." if duration is None else f"{duration}초 동안 분석합니다.")
 
@@ -59,7 +62,10 @@ def analyze_video(
 
             if elapsed - last_sample_time < sample_interval:
                 cv2.imshow("면접 분석 중 (q: 종료)", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or (stop_event is not None and stop_event.is_set()):
+                    if key == ord('q') and stop_event is not None:
+                        stop_event.set()
                     break
                 continue
 
@@ -70,9 +76,27 @@ def analyze_video(
             results = holistic.process(rgb)
             rgb.flags.writeable = True
 
-            vec = extract_normalized_vector(results, prev_vector)
+            # 깜빡임 상태 갱신 (얼굴 감지 시에만)
+            _, _, _, current_blink = compute_ear(results)
+            if results.face_landmarks is not None:
+                if prev_blink == 0.0 and current_blink == 1.0:
+                    blink_count += 1
+                prev_blink = current_blink
+            blink_rate = blink_count / elapsed if elapsed > 0.0 else 0.0
+
+            # prev_nose_y 초기화: 첫 유효 프레임에서 현재 값으로 세팅해 첫 head_nod 오염 방지
+            if prev_nose_y == 0.0 and results.face_landmarks is not None:
+                prev_nose_y = get_raw_nose_y(results)
+
+            vec = extract_normalized_vector(
+                results, prev_vector,
+                blink_rate=blink_rate,
+                prev_nose_y=prev_nose_y,
+            )
             if vec is not None:
                 prev_vector = vec
+                if results.face_landmarks is not None:
+                    prev_nose_y = get_raw_nose_y(results)
                 vectors.append(vec)
                 timestamps.append(round(elapsed, 3))
                 raw_frames.append(frame.copy())     # 프레임 저장
@@ -80,18 +104,22 @@ def analyze_video(
 
             annotated = _draw_overlay(frame, results, len(vectors), elapsed)
             cv2.imshow("면접 분석 중 (q: 종료)", annotated)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q') or (stop_event is not None and stop_event.is_set()):
+                if key == ord('q') and stop_event is not None:
+                    stop_event.set()
                 break
 
     cap.release()
     cv2.destroyAllWindows()
+    cv2.waitKey(1)  # macOS에서 창이 실제로 닫히려면 필요
     print(f"\n총 {len(vectors)}개 샘플 수집 완료")
 
     if len(vectors) < 2:
         raise ValueError(f"샘플이 너무 적습니다 ({len(vectors)}개).")
 
     print("클러스터링 중...")
-    result = run_clustering(vectors, n_clusters=n_clusters, pca_components=pca_components)
+    result = run_clustering(vectors, pca_components=pca_components)
 
     # 대표 프레임 저장
     representative_frames = _save_representative_frames(
