@@ -1,0 +1,31 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-slate-800 font-sans;
+  }
+}
+
+@layer utilities {
+  .score-gradient {
+    background: linear-gradient(135deg, #0066FF 0%, #3b82f6 100%);
+  }
+  .count-up-pop {
+    animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.4); color: #FF8A00; }
+    100% { transform: scale(1); }
+  }
+  .slide-down {
+    animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translate(-50%, -20px) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  }
+}

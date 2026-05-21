@@ -21,3 +21,13 @@ __pycache__/
 .idea/
 .vscode/
 *.iml
+
+# Node.js
+node_modules/
+gta-frontend/node_modules/
+package-lock.json
+
+# Binaries
+ffmpeg.exe
+ffprobe.exe
+CapStone_venv
