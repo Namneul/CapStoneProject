@@ -167,17 +167,39 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
 
         cluster_summary += f"- 패턴 {cid} (전체 {ratio*100:.0f}% 차지): {face_desc}, {hand_desc}\n"
 
+    face_metrics = nonverbal.get("face_metrics", {})
+    expression = face_metrics.get("expression", {})
+    head_pose = face_metrics.get("head_pose", {})
+    face_summary = (
+        f"- 얼굴 감지율: {face_metrics.get('face_detected_ratio', 0) * 100:.0f}%\n"
+        f"- 정면 응시 추정 비율: {face_metrics.get('eye_contact_ratio', 0) * 100:.0f}%\n"
+        f"- 시선 이탈 추정 비율: {face_metrics.get('gaze_away_ratio', 0) * 100:.0f}%\n"
+        f"- 눈 깜빡임: 분당 {face_metrics.get('blink_per_minute', 0):.1f}회\n"
+        f"- 미소/표정 안정성: 미소 비율 {expression.get('smile_ratio', 0) * 100:.0f}%, "
+        f"표정 안정도 {expression.get('expression_stability', 0):.2f}\n"
+        f"- 머리 방향 평균: 좌우 {head_pose.get('avg_yaw', 0):.1f}도, "
+        f"상하 {head_pose.get('avg_pitch', 0):.1f}도\n"
+    )
+    behavior_state = nonverbal.get("behavior_state", {})
+
+    behavior_summary = (
+        f"- 현재 행동 상태: {behavior_state.get('state', 'neutral')}\n"
+        f"- 상태 신뢰도: {behavior_state.get('confidence', 0):.2f}\n"
+    )
+
     prompt = f"""너는 {situation['name']} 상황 전문 커뮤니케이션 코치이다.
 
 답변의 내용 평가는 이미 완료되었다. 여기서는 말하는 방식과 비언어적 표현만 평가해라.
 잘한 점은 칭찬하고, 개선할 점은 구체적인 방법을 제시해라.
 수치를 직접 언급하지 말고 자연스러운 한국어로 작성해라.
+사용자의 행동 변화 흐름과 긴장 상태를 고려하여 평가해라.
+특정 순간의 비언어적 변화가 전달력에 어떤 영향을 주었는지 설명해라.
 
 반드시 아래 형식으로만 출력해라:
 1. 전달 방식 평가 (말속도·침묵·추임새·비언어 통합)
 2. 종합 피드백 및 개선 방향
 
-각 항목은 2~3문장으로 작성해라.
+각 항목은 4~5문장으로 작성해라.
 
 [상황]
 {situation['name']}
@@ -203,6 +225,10 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
 
 [비언어적 분석 결과]
 - 총 분석 시간: {nonverbal.get('total_duration', 0):.1f}초
+- 얼굴/시선/표정 분석:
+{face_summary}
+- 행동 상태 분석:
+{behavior_summary}
 - 감지된 행동 패턴:
 {cluster_summary}
 """

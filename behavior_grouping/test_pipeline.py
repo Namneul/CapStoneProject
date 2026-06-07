@@ -3,11 +3,12 @@ test_pipeline.py
 웹캠 없이 더미 벡터로 전체 파이프라인 검증
 """
 import sys
-sys.path.insert(0, '/home/claude/nonverbal')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
-from clustering import run_clustering
-from output import build_output, to_json_string
+from behavior_grouping.clustering import run_clustering
+from behavior_grouping.output import build_output, to_json_string
 
 np.random.seed(42)
 

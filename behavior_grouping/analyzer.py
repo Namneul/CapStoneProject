@@ -13,6 +13,7 @@ import mediapipe as mp
 from behavior_grouping.landmarks import extract_normalized_vector, compute_ear, get_raw_nose_y
 from behavior_grouping.clustering import run_clustering
 from behavior_grouping.output import build_output, to_json_string
+from behavior_grouping.face_metrics import FaceMetricTracker
 
 mp_holistic = mp.solutions.holistic
 
@@ -25,16 +26,23 @@ def analyze_video(
     output_dir: str = "result",
     frames_per_cluster: int = 3,
     stop_event: Optional[threading.Event] = None,
+    headless: bool = False,   # True면 cv2 창 없이 실행 (영상 파일 배치 처리용)
 ) -> dict:
     vectors = []
     timestamps = []
-    raw_frames = []     # 프레임 이미지 메모리에 저장
+    raw_frames = []
+    face_tracker = FaceMetricTracker()
 
     os.makedirs(os.path.join(output_dir, "frames"), exist_ok=True)
 
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         raise RuntimeError(f"영상 소스를 열 수 없습니다: {source}")
+
+    # 영상 파일이면 FPS 기반 타임스탬프 사용 (웹캠은 wall-clock)
+    is_file = isinstance(source, str)
+    video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    frame_idx = 0
 
     start_time = time.time()
     last_sample_time = -sample_interval
@@ -43,7 +51,10 @@ def analyze_video(
     prev_blink = 0.0
     prev_nose_y = 0.0
 
-    print("분석 시작 — 'q' 키를 누르면 종료합니다." if duration is None else f"{duration}초 동안 분석합니다.")
+    if not headless:
+        print("분석 시작 — 'q' 키를 누르면 종료합니다." if duration is None else f"{duration}초 동안 분석합니다.")
+    else:
+        print(f"분석 시작 (headless): {source}")
 
     with mp_holistic.Holistic(
         min_detection_confidence=0.5,
@@ -55,18 +66,20 @@ def analyze_video(
             if not ret:
                 break
 
-            elapsed = time.time() - start_time
+            elapsed = frame_idx / video_fps if is_file else time.time() - start_time
+            frame_idx += 1
 
             if duration is not None and elapsed >= duration:
                 break
 
             if elapsed - last_sample_time < sample_interval:
-                cv2.imshow("면접 분석 중 (q: 종료)", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q') or (stop_event is not None and stop_event.is_set()):
-                    if key == ord('q') and stop_event is not None:
-                        stop_event.set()
-                    break
+                if not headless:
+                    cv2.imshow("면접 분석 중 (q: 종료)", frame)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q') or (stop_event is not None and stop_event.is_set()):
+                        if key == ord('q') and stop_event is not None:
+                            stop_event.set()
+                        break
                 continue
 
             last_sample_time = elapsed
@@ -75,9 +88,15 @@ def analyze_video(
             rgb.flags.writeable = False
             results = holistic.process(rgb)
             rgb.flags.writeable = True
+            _, _, _, current_blink = compute_ear(results)
+            face_tracker.update(
+                results,
+                frame.shape,
+                elapsed,
+                current_blink,
+            )
 
             # 깜빡임 상태 갱신 (얼굴 감지 시에만)
-            _, _, _, current_blink = compute_ear(results)
             if results.face_landmarks is not None:
                 if prev_blink == 0.0 and current_blink == 1.0:
                     blink_count += 1
@@ -102,17 +121,19 @@ def analyze_video(
                 raw_frames.append(frame.copy())     # 프레임 저장
                 print(f"\r수집: {len(vectors)}개 샘플 ({elapsed:.1f}초)", end="", flush=True)
 
-            annotated = _draw_overlay(frame, results, len(vectors), elapsed)
-            cv2.imshow("면접 분석 중 (q: 종료)", annotated)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or (stop_event is not None and stop_event.is_set()):
-                if key == ord('q') and stop_event is not None:
-                    stop_event.set()
-                break
+            if not headless:
+                annotated = _draw_overlay(frame, results, len(vectors), elapsed)
+                cv2.imshow("면접 분석 중 (q: 종료)", annotated)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or (stop_event is not None and stop_event.is_set()):
+                    if key == ord('q') and stop_event is not None:
+                        stop_event.set()
+                    break
 
     cap.release()
-    cv2.destroyAllWindows()
-    cv2.waitKey(1)  # macOS에서 창이 실제로 닫히려면 필요
+    if not headless:
+        cv2.destroyAllWindows()
+        cv2.waitKey(1)
     print(f"\n총 {len(vectors)}개 샘플 수집 완료")
 
     if len(vectors) < 2:
@@ -127,6 +148,7 @@ def analyze_video(
     )
 
     output = build_output(result, timestamps, vectors, representative_frames)
+    output  ["face_metrics"] = face_tracker.summarize(elapsed)
     return output
 
 
