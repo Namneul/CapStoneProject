@@ -205,7 +205,7 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
 1. 전달 방식 평가 (말속도·침묵·추임새·비언어 통합)
 2. 종합 피드백 및 개선 방향
 
-각 항목은 4~5문장으로 작성해라.
+각 항목은 4~5   문장으로 작성해라.
 
 [상황]
 {situation['name']}
