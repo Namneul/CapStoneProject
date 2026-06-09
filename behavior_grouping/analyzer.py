@@ -10,6 +10,34 @@ import time
 import numpy as np
 import mediapipe as mp
 
+from flask import Flask, Response
+from flask_cors import CORS
+
+flask_app = Flask(__name__)
+CORS(flask_app)
+latest_frame = None
+
+@flask_app.route('/video_feed')
+def video_feed():
+    def gen():
+        global latest_frame
+        while True:
+            if latest_frame is not None:
+                ret, buffer = cv2.imencode('.jpg', latest_frame)
+                if ret:
+                    frame = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.05)
+    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def start_flask():
+    flask_app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)
+
+flask_thread = threading.Thread(target=start_flask, daemon=True)
+flask_thread.start()
+
+
 from behavior_grouping.landmarks import extract_normalized_vector, compute_ear, get_raw_nose_y
 from behavior_grouping.clustering import run_clustering
 from behavior_grouping.output import build_output, to_json_string
@@ -116,9 +144,12 @@ def analyze_video(
 
             should_sample = elapsed - last_sample_time >= sample_interval
             if not should_sample:
+                annotated = _draw_overlay(frame, results, len(vectors), elapsed)
+                global latest_frame
+                latest_frame = annotated
+
                 if not headless:
-                    annotated = _draw_overlay(frame, results, len(vectors), elapsed)
-                    cv2.imshow("면접 분석 중 (q: 종료)", annotated)
+                    # cv2.imshow("면접 분석 중 (q: 종료)", annotated)
                     key = cv2.waitKey(1) & 0xFF
                     if key == ord('q') or (stop_event is not None and stop_event.is_set()):
                         if key == ord('q') and stop_event is not None:
@@ -142,9 +173,11 @@ def analyze_video(
                 raw_frames.append(frame.copy())     # 프레임 저장
                 print(f"\r수집: {len(vectors)}개 샘플 ({elapsed:.1f}초)", end="", flush=True)
 
+            annotated = _draw_overlay(frame, results, len(vectors), elapsed)
+            latest_frame = annotated
+
             if not headless:
-                annotated = _draw_overlay(frame, results, len(vectors), elapsed)
-                cv2.imshow("면접 분석 중 (q: 종료)", annotated)
+                # cv2.imshow("면접 분석 중 (q: 종료)", annotated)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q') or (stop_event is not None and stop_event.is_set()):
                     if key == ord('q') and stop_event is not None:
@@ -155,6 +188,8 @@ def analyze_video(
     if not headless:
         cv2.destroyAllWindows()
         cv2.waitKey(1)
+    # Clear stream when done
+    latest_frame = None
     print(f"\n총 {len(vectors)}개 샘플 수집 완료")
 
     if state_window_size > 0 and elapsed > 0:
