@@ -13,8 +13,12 @@ import mediapipe as mp
 from behavior_grouping.landmarks import extract_normalized_vector, compute_ear, get_raw_nose_y
 from behavior_grouping.clustering import run_clustering
 from behavior_grouping.output import build_output, to_json_string
+from behavior_grouping.face_metrics import FaceMetricTracker
+from behavior_grouping.behavior_state import infer_behavior_state
+from behavior_grouping.exporter import export_analysis_result
 
 mp_holistic = mp.solutions.holistic
+WINDOW_SIZE = 5.0
 
 
 def analyze_video(
@@ -25,16 +29,27 @@ def analyze_video(
     output_dir: str = "result",
     frames_per_cluster: int = 3,
     stop_event: Optional[threading.Event] = None,
+    headless: bool = False,   # True면 cv2 창 없이 실행 (영상 파일 배치 처리용)
+    export_json: bool = True,
+    state_window_size: float = WINDOW_SIZE,
 ) -> dict:
     vectors = []
     timestamps = []
-    raw_frames = []     # 프레임 이미지 메모리에 저장
+    raw_frames = []
+    face_tracker = FaceMetricTracker()
+    state_timeline = []
+    next_state_time = state_window_size if state_window_size > 0 else float("inf")
 
     os.makedirs(os.path.join(output_dir, "frames"), exist_ok=True)
 
     cap = cv2.VideoCapture(source)
     if not cap.isOpened():
         raise RuntimeError(f"영상 소스를 열 수 없습니다: {source}")
+
+    # 영상 파일이면 FPS 기반 타임스탬프 사용 (웹캠은 wall-clock)
+    is_file = isinstance(source, str)
+    video_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    frame_idx = 0
 
     start_time = time.time()
     last_sample_time = -sample_interval
@@ -43,7 +58,10 @@ def analyze_video(
     prev_blink = 0.0
     prev_nose_y = 0.0
 
-    print("분석 시작 — 'q' 키를 누르면 종료합니다." if duration is None else f"{duration}초 동안 분석합니다.")
+    if not headless:
+        print("분석 시작 — 'q' 키를 누르면 종료합니다." if duration is None else f"{duration}초 동안 분석합니다.")
+    else:
+        print(f"분석 시작 (headless): {source}")
 
     with mp_holistic.Holistic(
         min_detection_confidence=0.5,
@@ -55,29 +73,37 @@ def analyze_video(
             if not ret:
                 break
 
-            elapsed = time.time() - start_time
+            elapsed = frame_idx / video_fps if is_file else time.time() - start_time
+            frame_idx += 1
 
             if duration is not None and elapsed >= duration:
                 break
-
-            if elapsed - last_sample_time < sample_interval:
-                cv2.imshow("면접 분석 중 (q: 종료)", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q') or (stop_event is not None and stop_event.is_set()):
-                    if key == ord('q') and stop_event is not None:
-                        stop_event.set()
-                    break
-                continue
-
-            last_sample_time = elapsed
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             rgb.flags.writeable = False
             results = holistic.process(rgb)
             rgb.flags.writeable = True
+            _, _, _, current_blink = compute_ear(results)
+            face_tracker.update(
+                results,
+                frame.shape,
+                elapsed,
+                current_blink,
+            )
+            while state_window_size > 0 and elapsed >= next_state_time:
+                window_start = max(0.0, next_state_time - state_window_size)
+                window_metrics = face_tracker.get_window_metrics(window_start, next_state_time)
+                if window_metrics["samples_analyzed"] > 0:
+                    state_timeline.append({
+                        "time": round(next_state_time, 2),
+                        "window_start": window_metrics["window_start"],
+                        "window_end": window_metrics["window_end"],
+                        "metrics": window_metrics,
+                        "state": infer_behavior_state(window_metrics),
+                    })
+                next_state_time += state_window_size
 
             # 깜빡임 상태 갱신 (얼굴 감지 시에만)
-            _, _, _, current_blink = compute_ear(results)
             if results.face_landmarks is not None:
                 if prev_blink == 0.0 and current_blink == 1.0:
                     blink_count += 1
@@ -87,6 +113,20 @@ def analyze_video(
             # prev_nose_y 초기화: 첫 유효 프레임에서 현재 값으로 세팅해 첫 head_nod 오염 방지
             if prev_nose_y == 0.0 and results.face_landmarks is not None:
                 prev_nose_y = get_raw_nose_y(results)
+
+            should_sample = elapsed - last_sample_time >= sample_interval
+            if not should_sample:
+                if not headless:
+                    annotated = _draw_overlay(frame, results, len(vectors), elapsed)
+                    cv2.imshow("면접 분석 중 (q: 종료)", annotated)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q') or (stop_event is not None and stop_event.is_set()):
+                        if key == ord('q') and stop_event is not None:
+                            stop_event.set()
+                        break
+                continue
+
+            last_sample_time = elapsed
 
             vec = extract_normalized_vector(
                 results, prev_vector,
@@ -102,18 +142,34 @@ def analyze_video(
                 raw_frames.append(frame.copy())     # 프레임 저장
                 print(f"\r수집: {len(vectors)}개 샘플 ({elapsed:.1f}초)", end="", flush=True)
 
-            annotated = _draw_overlay(frame, results, len(vectors), elapsed)
-            cv2.imshow("면접 분석 중 (q: 종료)", annotated)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or (stop_event is not None and stop_event.is_set()):
-                if key == ord('q') and stop_event is not None:
-                    stop_event.set()
-                break
+            if not headless:
+                annotated = _draw_overlay(frame, results, len(vectors), elapsed)
+                cv2.imshow("면접 분석 중 (q: 종료)", annotated)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or (stop_event is not None and stop_event.is_set()):
+                    if key == ord('q') and stop_event is not None:
+                        stop_event.set()
+                    break
 
     cap.release()
-    cv2.destroyAllWindows()
-    cv2.waitKey(1)  # macOS에서 창이 실제로 닫히려면 필요
+    if not headless:
+        cv2.destroyAllWindows()
+        cv2.waitKey(1)
     print(f"\n총 {len(vectors)}개 샘플 수집 완료")
+
+    if state_window_size > 0 and elapsed > 0:
+        last_window_start = max(0.0, elapsed - state_window_size)
+        should_add_final = not state_timeline or elapsed - state_timeline[-1]["time"] >= sample_interval
+        if should_add_final:
+            window_metrics = face_tracker.get_window_metrics(last_window_start, elapsed)
+            if window_metrics["samples_analyzed"] > 0:
+                state_timeline.append({
+                    "time": round(elapsed, 2),
+                    "window_start": window_metrics["window_start"],
+                    "window_end": window_metrics["window_end"],
+                    "metrics": window_metrics,
+                    "state": infer_behavior_state(window_metrics),
+                })
 
     if len(vectors) < 2:
         raise ValueError(f"샘플이 너무 적습니다 ({len(vectors)}개).")
@@ -127,7 +183,69 @@ def analyze_video(
     )
 
     output = build_output(result, timestamps, vectors, representative_frames)
+    output["cluster_reliability"] = _cluster_reliability(output.get("clustering_metrics", {}))
+
+    face_metrics = face_tracker.summarize(elapsed)
+    behavior_state = infer_behavior_state(face_metrics)
+
+    output["face_metrics"] = face_metrics
+    output["behavior_state"] = behavior_state
+    output["state_timeline"] = state_timeline
+    output["state_transitions"] = _detect_state_transitions(state_timeline)
+
+    if export_json:
+        export_path = export_analysis_result(
+            output,
+            output_dir=output_dir,
+            filename="analysis_result.json",
+            metadata={
+                "source": str(source),
+                "sample_interval": sample_interval,
+                "frames_per_cluster": frames_per_cluster,
+                "state_window_size": state_window_size,
+            },
+        )
+        print(f"\n분석 결과 JSON 저장 완료: {export_path}")
+
     return output
+
+
+def _detect_state_transitions(state_timeline: list[dict]) -> list[dict]:
+    transitions = []
+    previous = None
+    for item in state_timeline:
+        current_state = item.get("state", {}).get("state")
+        if previous is not None and current_state != previous["state"]:
+            transitions.append({
+                "from": previous["state"],
+                "to": current_state,
+                "time": item.get("time"),
+                "window_start": item.get("window_start"),
+                "window_end": item.get("window_end"),
+            })
+        previous = {
+            "state": current_state,
+            "time": item.get("time"),
+        }
+    return transitions
+
+
+def _cluster_reliability(metrics: dict) -> dict:
+    silhouette = float(metrics.get("silhouette_score", 0.0) or 0.0)
+    davies_bouldin = float(metrics.get("davies_bouldin_index", 999.0) or 999.0)
+    reliable = silhouette >= 0.15 and davies_bouldin <= 1.5
+    if reliable:
+        reason = "cluster separation is acceptable"
+    elif silhouette < 0.15:
+        reason = "silhouette_score is too low for strong behavior-pattern claims"
+    else:
+        reason = "davies_bouldin_index is too high for strong behavior-pattern claims"
+    return {
+        "reliable": reliable,
+        "silhouette_score": round(silhouette, 4),
+        "davies_bouldin_index": round(davies_bouldin, 4),
+        "reason": reason,
+    }
 
 
 def _save_representative_frames(
@@ -187,8 +305,6 @@ def _draw_overlay(frame, results, sample_count: int, elapsed: float):
 
 
 if __name__ == "__main__":
-    import json
-
     output = analyze_video(
         source=0,
         output_dir="result",
@@ -198,6 +314,5 @@ if __name__ == "__main__":
     print("\n=== 분석 결과 ===")
     print(to_json_string(output))
 
-    with open("result/result.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
-    print("\nresult/result.json 저장 완료")
+    export_path = export_analysis_result(output, output_dir="result", filename="result.json")
+    print(f"\n{export_path} 저장 완료")
