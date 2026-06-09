@@ -2,7 +2,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import os
-import re
 import sys
 import time
 import whisper
@@ -11,21 +10,12 @@ import scipy.io.wavfile as wav
 import numpy as np
 import librosa
 
+from verbal_synthesis.klue_bert_analyzer import KlueBertAnalyzer
+
 fs = 44100
 recording = []
 _whisper_model = None
-
-FILLER_WORDS = {
-    "어",
-    "음",
-    "으음",
-    "저",
-    "저기",
-    "그니까",
-    "그러니까",
-    "약간",
-    "뭐",
-}
+_klue_bert_model = None
 
 
 def callback(indata, frames, time, status):
@@ -80,6 +70,24 @@ def speech_to_text() -> str:
     return result["text"]
 
 
+def analyze_language(text: str) -> dict:
+    """Detect fillers, repetitions, and word errors with fine-tuned KLUE-BERT."""
+    global _klue_bert_model
+
+    model_dir = os.getenv(
+        "KLUE_BERT_MODEL_DIR",
+        os.path.join(
+            "models",
+            "aihub-klue-bert",
+            "2.AI학습모델파일",
+            "모델1_언어적_KLUE-BERT",
+        ),
+    )
+    if _klue_bert_model is None:
+        _klue_bert_model = KlueBertAnalyzer(model_dir)
+    return _klue_bert_model.analyze(text)
+
+
 def analyze_audio(text: str) -> dict:
     y, sr = librosa.load("recorded.wav")
     duration = librosa.get_duration(y=y, sr=sr)
@@ -88,27 +96,26 @@ def analyze_audio(text: str) -> dict:
     silence_time = duration - speech_time
     word_count = len(text.split())
     speech_rate = word_count / speech_time if speech_time > 0 else 0
-    tokens = _tokenize_korean_stt(text)
-    filler_tokens = [token for token in tokens if token in FILLER_WORDS]
-    filler_count = len(filler_tokens)
+    language_analysis = analyze_language(text)
+    language_counts = language_analysis["counts"]
+    filler_tokens = [
+        span["text"]
+        for span in language_analysis["spans"]
+        if span["name"] == "filler"
+    ]
     pause_count = _count_long_pauses(intervals, sr)
 
     return {
         "speech_rate": round(speech_rate, 2),
         "silence_time": round(silence_time, 2),
-        "filler_count": filler_count,
+        "filler_count": language_counts["filler"],
+        "repeat_count": language_counts["repeat"],
+        "word_error_count": language_counts["word_error"],
         "filler_tokens": filler_tokens,
+        "language_analysis": language_analysis,
         "pause_count": pause_count,
         "duration": round(duration, 2),
     }
-
-
-def _tokenize_korean_stt(text: str) -> list[str]:
-    return [
-        token
-        for token in re.split(r"[\s,.!?;:\"'()\[\]{}]+", text.strip())
-        if token
-    ]
 
 
 def _count_long_pauses(intervals, sr, threshold_seconds: float = 0.7) -> int:

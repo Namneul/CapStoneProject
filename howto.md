@@ -7,6 +7,26 @@
 - python orchestrator.py
 - 면접 후 q 누르면 종료. 터미널 및 json 파일로 최종 평가 생성
 
+## KLUE-BERT 언어 분석 모델
+
+AI Hub에서 받은 TensorFlow KLUE-BERT 모델로 간투어(FIL), 반복(REP),
+발화 오류(WR)를 탐지한다. 모델은 아래 경로에 배치한다.
+
+```text
+models/aihub-klue-bert/2.AI학습모델파일/모델1_언어적_KLUE-BERT/
+  checkpoint
+  cp.ckpt.data-00000-of-00001
+  cp.ckpt.index
+```
+
+이 모델의 라벨 순서는 `O`, `FIL-B`, `REP-B`, `PS-B`, `WR-B`이다.
+다른 경로를 사용할 때:
+
+```powershell
+$env:KLUE_BERT_MODEL_DIR="C:\path\to\klue-bert-model"
+python orchestrator.py
+```
+
 ## 웹 배포 방향
 
 실시간 웹캠 피드백 대신 업로드 후 분석 방식으로 간다.
