@@ -10,28 +10,7 @@ export const useAnalysis = (isActive) => {
 
   useEffect(() => {
     if (!isActive) return;
-
-    // 시뮬레이션: 3초마다 체크하여 랜덤하게 제스처 경고 발생
-    const interval = setInterval(() => {
-      // 25% 확률로 경고 생성
-      if (Math.random() < 0.25) { 
-        const newWarning = {
-          id: Date.now(),
-          type: Math.random() > 0.5 ? 'gaze' : 'hand',
-          message: '시선 이탈 및 부적절한 제스처 감지'
-        };
-        
-        setWarnings(prev => [...prev, newWarning]);
-        setTotalGestures(prev => prev + 1);
-        
-        // 3초 뒤 경고 큐에서 제거 (토스트 애니메이션 용도)
-        setTimeout(() => {
-          setWarnings(prev => prev.filter(w => w.id !== newWarning.id));
-        }, 3000);
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
+    // 추후 실시간 WebSocket 통신 등 실제 백엔드 연동 로직으로 교체
   }, [isActive]);
 
   return { warnings, totalGestures };

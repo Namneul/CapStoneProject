@@ -5,6 +5,7 @@ orchestrator.py
 
 import threading
 import requests
+import sys
 
 from verbal_synthesis.stt import record_audio, speech_to_text, analyze_audio
 from verbal_synthesis.LLM import (
@@ -41,19 +42,22 @@ SITUATION_CONTEXT = {
 
 
 def call_llm_orchestrator(prompt: str) -> str:
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "qwen3:8b",
-            "prompt": prompt,
-            "stream": False,
-            "temperature": 0.3,
-        }
-    )
-    data = response.json()
-    if "response" not in data:
-        return "생성 실패"
-    return data["response"].strip()
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "exaone3.5:7.8b",
+                "prompt": prompt,
+                "stream": False,
+                "temperature": 0.3,
+            }
+        )
+        data = response.json()
+        if "response" not in data:
+            return "1. 전달 방식 평가\n(AI 모델 미설치로 인한 임시 텍스트)\n2. 종합 피드백 및 개선 방향\n(AI 모델 미설치로 인한 임시 텍스트)"
+        return data["response"].strip()
+    except Exception as e:
+        return "1. 전달 방식 평가\n(AI 서버 오류 임시 텍스트)\n2. 종합 피드백 및 개선 방향\n(AI 서버 오류 임시 텍스트)"
 
 
 def select_situation() -> dict:
@@ -421,8 +425,17 @@ if __name__ == "__main__":
     def record_and_stop():
         record_audio(stop_event=stop_event)
 
+    def listen_for_stop():
+        for line in sys.stdin:
+            if line.strip() == 'q':
+                stop_event.set()
+                break
+
     record_thread = threading.Thread(target=record_and_stop)
     record_thread.start()
+
+    stdin_thread = threading.Thread(target=listen_for_stop, daemon=True)
+    stdin_thread.start()
 
     try:
         result = analyze_video(

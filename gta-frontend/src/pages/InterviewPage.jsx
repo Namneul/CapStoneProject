@@ -152,26 +152,44 @@ export const InterviewPage = () => {
             {isRecording ? (
               <div className="bg-red-50 text-red-500 px-5 py-2.5 rounded-full text-sm font-bold flex items-center mb-4 border border-red-100 z-10">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500 mr-2.5 animate-pulse"></div>
-                녹음 중... (별도의 파이썬 카메라 창을 확인하세요)
+                녹음 중... (웹캠을 보며 답변해 주세요)
               </div>
             ) : null}
             
             <p className="text-slate-500 mb-8 font-medium text-center">
               {isAnalyzing 
-                ? '파이썬 카메라 창에서 답변을 진행하고 q를 눌러 종료하세요.' 
+                ? '웹캠을 보며 자연스럽게 답변을 진행하신 후, 답변 완료 버튼을 눌러주세요.' 
                 : isReady 
-                  ? '버튼을 누르면 별도의 카메라 창이 뜨면서 분석이 시작됩니다.'
+                  ? '답변 준비가 끝나면 아래 버튼을 눌러 답변을 시작하세요.'
                   : '에이전트가 질문을 준비하고 있습니다...'}
             </p>
 
-            <Button 
-              variant="dark" 
-              onClick={handleStartRecording} 
-              className="text-lg"
-              disabled={!isReady || isAnalyzing}
-            >
-              {isAnalyzing ? '분석 진행 중...' : '답변 시작하기'}
-            </Button>
+            {isRecording ? (
+              <Button 
+                variant="dark" 
+                onClick={async () => {
+                  try {
+                    await fetch('/api/stop-recording', { method: 'POST' });
+                    setIsRecording(false);
+                    setIsAnalyzing(true);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }} 
+                className="text-lg bg-red-600 hover:bg-red-700 text-white border-none"
+              >
+                답변 완료
+              </Button>
+            ) : (
+              <Button 
+                variant="dark" 
+                onClick={handleStartRecording} 
+                className="text-lg"
+                disabled={!isReady || isAnalyzing}
+              >
+                {isAnalyzing ? '분석 진행 중...' : '답변 시작하기'}
+              </Button>
+            )}
           </Card>
         </div>
       </div>

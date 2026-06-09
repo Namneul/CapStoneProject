@@ -8,20 +8,24 @@ MODEL = "exaone3.5:7.8b"
 
 
 def call_llm(prompt: str) -> str:
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "temperature": 0.3,
-        }
-    )
-    data = response.json()
-    if "response" not in data:
-        print("LLM 오류:", data)
-        return "생성 실패"
-    return data["response"].strip()
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "temperature": 0.3,
+            }
+        )
+        data = response.json()
+        if "response" not in data:
+            print("LLM 오류:", data)
+            return "(AI 모델 미설치로 인한 테스트 질문) 1분 자기소개를 해주세요."
+        return data["response"].strip()
+    except Exception as e:
+        print("LLM 서버 오류:", e)
+        return "(AI 서버 미연결로 인한 테스트 질문) 1분 자기소개를 해주세요."
 
 
 def generate_question() -> str:

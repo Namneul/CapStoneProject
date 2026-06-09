@@ -21,6 +21,14 @@ latest_frame = None
 def video_feed():
     def gen():
         global latest_frame
+        
+        # Create a black placeholder frame
+        blank_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(blank_frame, "Waiting for camera...", (150, 240), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        _, blank_buffer = cv2.imencode('.jpg', blank_frame)
+        blank_bytes = blank_buffer.tobytes()
+
         while True:
             if latest_frame is not None:
                 ret, buffer = cv2.imencode('.jpg', latest_frame)
@@ -28,6 +36,9 @@ def video_feed():
                     frame = buffer.tobytes()
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            else:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + blank_bytes + b'\r\n')
             time.sleep(0.05)
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -85,6 +96,7 @@ def analyze_video(
     blink_count = 0
     prev_blink = 0.0
     prev_nose_y = 0.0
+    elapsed = 0.0
 
     if not headless:
         print("분석 시작 — 'q' 키를 누르면 종료합니다." if duration is None else f"{duration}초 동안 분석합니다.")
@@ -96,10 +108,18 @@ def analyze_video(
         min_tracking_confidence=0.5,
     ) as holistic:
 
+        retry_count = 0
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                break
+                retry_count += 1
+                if retry_count > 10:
+                    print("카메라 프레임을 읽을 수 없습니다.")
+                    break
+                time.sleep(0.5)
+                continue
+            
+            retry_count = 0 # reset on success
 
             elapsed = frame_idx / video_fps if is_file else time.time() - start_time
             frame_idx += 1

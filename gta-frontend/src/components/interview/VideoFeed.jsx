@@ -24,10 +24,15 @@ export const VideoFeed = ({ totalGestures }) => {
         </div>
 
         <img 
-          src="http://localhost:5001/video_feed" 
+          src={`http://localhost:5001/video_feed?t=${Date.now()}`}
           alt="Webcam Feed" 
           className="absolute inset-0 w-full h-full object-cover rounded-2xl opacity-90"
-          onError={(e) => e.target.style.display = 'none'}
+          onError={(e) => {
+            // Retry loading the image after 1 second if backend wasn't ready
+            setTimeout(() => {
+              e.target.src = `http://localhost:5001/video_feed?retry=${Date.now()}`;
+            }, 1000);
+          }}
         />
 
         <VideoOff className="w-16 h-16 text-slate-700/80 mb-4 -z-10" />

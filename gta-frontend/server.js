@@ -35,7 +35,9 @@ app.post('/api/start-interview', (req, res) => {
     let isQuestionStarted = false;
     let isReadyForAnswer = false;
 
-    pythonProcess.stdout.on('data', (data) => {
+    const currentProcess = pythonProcess;
+
+    currentProcess.stdout.on('data', (data) => {
         const text = data.toString();
         console.log(`[Python]: ${text}`);
         
@@ -45,12 +47,12 @@ app.post('/api/start-interview', (req, res) => {
             if (topic === '1' || topic === '2' || topic === '3') {
                 topicInput = `${topic}\n`;
             }
-            pythonProcess.stdin.write(topicInput);
+            currentProcess.stdin.write(topicInput);
         } else if (text.includes('상황을 직접 입력해주세요:')) {
-            pythonProcess.stdin.write(`${topicName}\n`);
+            currentProcess.stdin.write(`${topicName}\n`);
         } else if (text.includes('Enter 누르면 시작')) {
             // start the interview to get the question
-            pythonProcess.stdin.write('\n');
+            currentProcess.stdin.write('\n');
         } else if (text.includes('질문:')) {
             isQuestionStarted = true;
             const parts = text.split('질문:');
@@ -71,12 +73,15 @@ app.post('/api/start-interview', (req, res) => {
         }
     });
 
-    pythonProcess.stderr.on('data', (data) => {
+    currentProcess.stderr.on('data', (data) => {
         console.error(`[Python Error]: ${data}`);
     });
     
-    pythonProcess.on('close', (code) => {
+    currentProcess.on('close', (code) => {
         console.log(`Python process exited with code ${code}`);
+        if (pythonProcess === currentProcess) {
+            pythonProcess = null;
+        }
         // if it crashes before sending question
         if (!res.headersSent) {
             res.status(500).json({ error: "Failed to generate question" });
@@ -89,21 +94,39 @@ app.post('/api/start-recording', (req, res) => {
         return res.status(400).json({ error: "No active interview session." });
     }
 
+    const currentProcess = pythonProcess;
+
     // Send enter to start recording/camera
-    pythonProcess.stdin.write('\n');
+    currentProcess.stdin.write('\n');
     
     // Wait for process to finish
-    pythonProcess.on('close', (code) => {
-        pythonProcess = null;
+    currentProcess.on('close', (code) => {
+        if (pythonProcess === currentProcess) {
+            pythonProcess = null;
+        }
         // read result/final_result.json
         const resultPath = path.join(BACKEND_DIR, 'result', 'final_result.json');
         if (fs.existsSync(resultPath)) {
-            const data = fs.readFileSync(resultPath, 'utf8');
-            res.json(JSON.parse(data));
+            try {
+                const data = fs.readFileSync(resultPath, 'utf8');
+                res.json(JSON.parse(data));
+            } catch (e) {
+                res.status(500).json({ error: "Result file is invalid JSON" });
+            }
         } else {
             res.status(500).json({ error: "Result file not found" });
         }
     });
+});
+
+app.post('/api/stop-recording', (req, res) => {
+    if (pythonProcess && pythonProcess.stdin) {
+        // Send 'q' to stop recording
+        pythonProcess.stdin.write('q\n');
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ error: "No active process to stop" });
+    }
 });
 
 app.post('/api/cancel-interview', (req, res) => {
