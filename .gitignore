@@ -6,6 +6,7 @@ env/
 # 런타임 산출물
 recorded.wav
 result/
+models/
 
 # macOS
 .DS_Store
@@ -25,6 +26,7 @@ __pycache__/
 # Node.js
 node_modules/
 gta-frontend/node_modules/
+gta-frontend/dist/
 package-lock.json
 
 # Binaries

@@ -7,7 +7,11 @@ sounddevice==0.5.1
 scipy==1.13.1
 requests==2.32.5
 pynndescent==0.6.0
-opencv-python
-numpy
+opencv-python==4.10.0.84
+opencv-contrib-python==4.10.0.84
+numpy==1.26.4
+torch
+tensorflow==2.15.1
+transformers==4.35.2
 flask
 flask-cors

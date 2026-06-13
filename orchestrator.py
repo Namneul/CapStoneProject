@@ -152,6 +152,14 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
     else:
         filler_eval = "추임새 횟수 적절"
 
+    repeat_count = verbal.get("repeat_count", 0)
+    word_error_count = verbal.get("word_error_count", 0)
+    disfluency_eval = (
+        f"반복 표현 {repeat_count}건, 발화 오류 {word_error_count}건 탐지"
+        if repeat_count or word_error_count
+        else "반복 표현과 발화 오류가 탐지되지 않음"
+    )
+
     cluster_summary = summarize_clusters(nonverbal)
     trusted_observations = build_trusted_observations(
         verbal=verbal,
@@ -206,7 +214,7 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
 피드백을 측정값 나열처럼 쓰지 말고, 답변 상황에 맞는 코칭 문장으로 바꿔라.
 
 반드시 아래 형식으로만 출력해라:
-1. 전달 방식 평가 (말속도·침묵·추임새·비언어 통합)
+1. 전달 방식 평가 (말속도·침묵·추임새·반복·발화 오류·비언어 통합)
 2. 종합 피드백 및 개선 방향
 
 각 항목은 4~5   문장으로 작성해라.
@@ -232,6 +240,7 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
 - {rate_eval}
 - {silence_eval}
 - {filler_eval}
+- {disfluency_eval}
 
 [신뢰 가능한 관찰]
 {trusted_observations}
