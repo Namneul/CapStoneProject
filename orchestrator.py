@@ -7,7 +7,7 @@ import threading
 import requests
 import sys
 
-from verbal_synthesis.stt import record_audio, speech_to_text, analyze_audio
+from verbal_synthesis.stt import record_audio, speech_to_text_result, analyze_audio
 from verbal_synthesis.LLM import (
     generate_question, generate_followup,
     evaluate_answer_content, generate_improved_answer,
@@ -15,6 +15,7 @@ from verbal_synthesis.LLM import (
 from behavior_grouping.analyzer import analyze_video
 from behavior_grouping.behavior_state import infer_behavior_state
 from behavior_grouping.exporter import export_analysis_result
+from session_insights import attach_history_insights, build_session_insights
 
 
 SITUATION_CONTEXT = {
@@ -201,6 +202,7 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
         f"- 주요 근거:\n{evidence_summary}\n"
     )
     timeline_summary = summarize_state_timeline(nonverbal)
+    stgcnpp_summary = summarize_stgcnpp_action(nonverbal)
 
     prompt = f"""너는 {situation['name']} 상황 전문 커뮤니케이션 코치이다.
 
@@ -251,6 +253,8 @@ def orchestrate(situation: dict, question: str, verbal: dict, nonverbal: dict) -
 {face_summary}
 - 행동 상태 분석:
 {behavior_summary}
+- STGCN++ 동작 분류:
+{stgcnpp_summary}
 - 시간 흐름 기반 행동 변화:
 {timeline_summary}
 - 감지된 행동 패턴:
@@ -268,6 +272,32 @@ def build_state_input(verbal: dict, nonverbal: dict) -> dict:
         "silence_time": verbal.get("silence_time"),
         "pause_count": verbal.get("pause_count"),
     }
+
+
+def summarize_stgcnpp_action(nonverbal: dict) -> str:
+    action = nonverbal.get("stgcnpp_action") or {}
+    if action.get("status") != "ok":
+        return "- STGCN++ 동작 분류는 사용 가능한 결과 없음"
+
+    top = action.get("top_predictions") or []
+    if not top:
+        return "- STGCN++ 동작 분류 결과 없음"
+
+    primary = top[0]
+    lines = [
+        (
+            f"- 예측 클래스: {primary.get('label')} "
+            f"(index={primary.get('class_index')}, confidence={primary.get('score', 0):.2f})"
+        )
+    ]
+    if len(top) > 1:
+        alternatives = ", ".join(
+            f"{item.get('label')}:{item.get('score', 0):.2f}"
+            for item in top[1:4]
+        )
+        lines.append(f"- 후보 클래스: {alternatives}")
+    lines.append("- 클래스명 매핑 파일이 없어 숫자 클래스 기준으로 참고")
+    return "\n".join(lines)
 
 
 def build_trusted_observations(
@@ -461,14 +491,18 @@ if __name__ == "__main__":
     record_thread.join()
 
     print("\n음성 변환 중...")
-    text = speech_to_text()
+    transcript = speech_to_text_result()
+    text = transcript["text"]
     print(f"\n답변: {text}")
 
     if text.strip() == "":
         print("음성이 인식되지 않았습니다.")
         exit()
 
-    verbal = {"text": text, **analyze_audio(text)}
+    verbal = {
+        "text": text,
+        **analyze_audio(text, transcript_segments=transcript.get("segments", [])),
+    }
     nonverbal = result_container.get("nonverbal") or {}
     state_input = build_state_input(verbal, nonverbal)
     integrated_behavior_state = infer_behavior_state(state_input)
@@ -493,16 +527,25 @@ if __name__ == "__main__":
     followup = generate_followup(text)
     print(f"\n꼬리 질문:\n{followup}")
 
+    session_insights = build_session_insights(
+        question=question,
+        verbal=verbal,
+        nonverbal=nonverbal,
+        situation=situation,
+    )
+
     final_payload = {
         "situation": situation,
         "question": question,
         "verbal": verbal,
         "nonverbal": nonverbal,
+        "session_insights": session_insights,
         "content_evaluation": content_eval,
         "improved_answer": improved,
         "delivery_feedback": delivery_feedback,
         "followup": followup,
     }
+    final_payload = attach_history_insights(final_payload, output_dir="result")
     export_path = export_analysis_result(
         final_payload,
         output_dir="result",

@@ -25,10 +25,16 @@ app.post('/api/start-interview', (req, res) => {
     let topicName = topic || '일반 면접 연습';
 
     // 한글 경로(문서)로 인한 Mediapipe C++ 코어 버그 방지를 위해 심볼릭 링크 경로 사용
-    const pythonExePath = 'C:\\Users\\exlle\\CapStone_venv\\Scripts\\python.exe';
+    const localPython = path.join(BACKEND_DIR, '.venv', 'Scripts', 'python.exe');
+    const pythonExePath = fs.existsSync(localPython) ? localPython : 'python';
     pythonProcess = spawn(pythonExePath, ['-u', 'orchestrator.py'], {
-        cwd: path.join(__dirname, '..'), // root 디렉토리에서 실행
-        env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", PATH: `C:\\Users\\exlle\\CapStone_venv\\Scripts;${process.env.PATH}` }
+        cwd: BACKEND_DIR,
+        env: {
+            ...process.env,
+            PYTHONUNBUFFERED: "1",
+            PYTHONIOENCODING: "utf-8",
+            PATH: `${path.dirname(pythonExePath)};${process.env.PATH}`,
+        }
     });
     
     let question = "";
@@ -135,6 +141,19 @@ app.post('/api/cancel-interview', (req, res) => {
         pythonProcess = null;
     }
     res.json({ success: true });
+});
+
+app.get('/api/latest-result', (req, res) => {
+    const resultPath = path.join(BACKEND_DIR, 'result', 'final_result.json');
+    if (!fs.existsSync(resultPath)) {
+        return res.status(404).json({ error: "Result file not found" });
+    }
+    try {
+        const data = fs.readFileSync(resultPath, 'utf8');
+        res.json(JSON.parse(data));
+    } catch (e) {
+        res.status(500).json({ error: "Result file is invalid JSON" });
+    }
 });
 
 const PORT = 3001;

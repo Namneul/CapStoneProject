@@ -4,9 +4,15 @@ analyzer.py
 """
 import threading
 from typing import Optional, Union, List
-import cv2
 import os
 import time
+
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "matplotlib"),
+)
+
+import cv2
 import numpy as np
 import mediapipe as mp
 
@@ -55,6 +61,7 @@ from behavior_grouping.output import build_output, to_json_string
 from behavior_grouping.face_metrics import FaceMetricTracker
 from behavior_grouping.behavior_state import infer_behavior_state
 from behavior_grouping.exporter import export_analysis_result
+from behavior_grouping.stgcnpp_analyzer import analyze_pose_sequence, collect_pose_result
 
 mp_holistic = mp.solutions.holistic
 WINDOW_SIZE = 5.0
@@ -76,6 +83,8 @@ def analyze_video(
     timestamps = []
     raw_frames = []
     face_tracker = FaceMetricTracker()
+    stgcnpp_pose_results = []
+    stgcnpp_img_shape = None
     state_timeline = []
     next_state_time = state_window_size if state_window_size > 0 else float("inf")
 
@@ -138,6 +147,10 @@ def analyze_video(
                 elapsed,
                 current_blink,
             )
+            pose_result = collect_pose_result(results, frame.shape)
+            if pose_result is not None:
+                stgcnpp_pose_results.append(pose_result)
+                stgcnpp_img_shape = frame.shape[:2]
             while state_window_size > 0 and elapsed >= next_state_time:
                 window_start = max(0.0, next_state_time - state_window_size)
                 window_metrics = face_tracker.get_window_metrics(window_start, next_state_time)
@@ -245,6 +258,10 @@ def analyze_video(
 
     output["face_metrics"] = face_metrics
     output["behavior_state"] = behavior_state
+    output["stgcnpp_action"] = analyze_pose_sequence(
+        stgcnpp_pose_results,
+        stgcnpp_img_shape or (0, 0),
+    )
     output["state_timeline"] = state_timeline
     output["state_transitions"] = _detect_state_transitions(state_timeline)
 

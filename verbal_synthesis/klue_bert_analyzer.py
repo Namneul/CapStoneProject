@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import os
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,10 @@ class KlueBertAnalyzer:
                 f"KLUE-BERT 체크포인트를 찾을 수 없습니다: {checkpoint_path}"
             )
 
+        cache_dir = Path(__file__).resolve().parent.parent / ".cache" / "huggingface"
+        os.environ.setdefault("HF_HOME", str(cache_dir))
+        os.environ.setdefault("TRANSFORMERS_CACHE", str(cache_dir))
+
         try:
             import numpy as np
             import tensorflow as tf
@@ -47,12 +52,24 @@ class KlueBertAnalyzer:
         self.np = np
         self.tf = tf
         self.confidence_threshold = confidence_threshold
-        self.tokenizer = BertTokenizer.from_pretrained(base_model_name)
+        try:
+            self.tokenizer = BertTokenizer.from_pretrained(
+                base_model_name,
+                local_files_only=True,
+            )
+        except OSError:
+            self.tokenizer = BertTokenizer.from_pretrained(base_model_name)
 
         class TFBertForTokenClassification(tf.keras.Model):
             def __init__(self):
                 super().__init__()
-                config = BertConfig.from_pretrained(base_model_name)
+                try:
+                    config = BertConfig.from_pretrained(
+                        base_model_name,
+                        local_files_only=True,
+                    )
+                except OSError:
+                    config = BertConfig.from_pretrained(base_model_name)
                 self.bert = TFBertModel(config, name="bert")
                 self.dropout = tf.keras.layers.Dropout(0.1)
                 self.classifier = tf.keras.layers.Dense(

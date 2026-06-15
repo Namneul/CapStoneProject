@@ -20,6 +20,7 @@ from typing import Iterable, Optional
 import numpy as np
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_GAZE_X_THRESHOLD = 0.25
 DEFAULT_GAZE_Y_THRESHOLD = 0.25
 DEFAULT_MIN_CONFIDENCE = 0.75
@@ -120,6 +121,7 @@ def find_feature_extraction_binary(explicit_path: Optional[str] = None) -> Optio
         explicit_path,
         os.getenv("OPENFACE_FEATURE_EXTRACTION_BIN"),
         "FeatureExtraction",
+        str(PROJECT_ROOT / "tools" / "openface" / "OpenFace_2.2.0_win_x64" / "FeatureExtraction.exe"),
         "/usr/local/bin/FeatureExtraction",
         "/opt/OpenFace/build/bin/FeatureExtraction",
         "/opt/OpenFace/OpenFace/build/bin/FeatureExtraction",

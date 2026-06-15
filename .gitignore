@@ -2,6 +2,8 @@
 .venv/
 venv/
 env/
+.python311/
+.cache/
 
 # 런타임 산출물
 recorded.wav
@@ -32,4 +34,5 @@ package-lock.json
 # Binaries
 ffmpeg.exe
 ffprobe.exe
+tools/
 CapStone_venv

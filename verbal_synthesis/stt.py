@@ -49,13 +49,13 @@ def record_audio(stop_event=None):
     wav.write("recorded.wav", fs, audio)
 
 
-def speech_to_text() -> str:
+def transcribe_audio(audio_path: str = "recorded.wav") -> dict:
     global _whisper_model
     model_name = os.getenv("WHISPER_MODEL", "small")
     if _whisper_model is None:
         _whisper_model = whisper.load_model(model_name)
     result = _whisper_model.transcribe(
-        "recorded.wav",
+        audio_path,
         language="ko",
         task="transcribe",
         fp16=False,
@@ -68,7 +68,28 @@ def speech_to_text() -> str:
             "추임새와 망설임 표현도 생략하지 말고 그대로 받아쓰기하세요."
         ),
     )
-    return result["text"]
+    return {
+        "text": result.get("text", "").strip(),
+        "segments": [
+            {
+                "id": segment.get("id", index),
+                "start": round(float(segment.get("start", 0.0)), 2),
+                "end": round(float(segment.get("end", 0.0)), 2),
+                "text": segment.get("text", "").strip(),
+            }
+            for index, segment in enumerate(result.get("segments", []))
+            if segment.get("text", "").strip()
+        ],
+        "language": result.get("language"),
+    }
+
+
+def speech_to_text() -> str:
+    return transcribe_audio()["text"]
+
+
+def speech_to_text_result() -> dict:
+    return transcribe_audio()
 
 
 def analyze_language(text: str) -> dict:
@@ -79,7 +100,7 @@ def analyze_language(text: str) -> dict:
         "KLUE_BERT_MODEL_DIR",
         os.path.join(
             "models",
-            "aihub-klue-bert",
+            "1.모델",
             "2.AI학습모델파일",
             "모델1_언어적_KLUE-BERT",
         ),
@@ -106,8 +127,12 @@ def _empty_language_analysis(reason: str) -> dict:
     }
 
 
-def analyze_audio(text: str) -> dict:
-    y, sr = librosa.load("recorded.wav")
+def analyze_audio(
+    text: str,
+    transcript_segments: list[dict] | None = None,
+    audio_path: str = "recorded.wav",
+) -> dict:
+    y, sr = librosa.load(audio_path)
     duration = librosa.get_duration(y=y, sr=sr)
     intervals = librosa.effects.split(y, top_db=20)
     speech_time = sum((end - start) for start, end in intervals) / sr
@@ -131,6 +156,7 @@ def analyze_audio(text: str) -> dict:
         "word_error_count": language_counts["word_error"],
         "filler_tokens": filler_tokens,
         "language_analysis": language_analysis,
+        "transcript_segments": transcript_segments or [],
         "pause_count": pause_count,
         "duration": round(duration, 2),
     }

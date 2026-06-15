@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { TopicSetupPage } from './pages/TopicSetupPage';
 import { InterviewPage } from './pages/InterviewPage';
 import { ResultDashboardPage } from './pages/ResultDashboardPage';
+import { LatestResultPage } from './pages/LatestResultPage';
 
 function App() {
   return (
@@ -16,6 +17,8 @@ function App() {
           <Route path="/setup" element={<TopicSetupPage />} />
           <Route path="/interview" element={<InterviewPage />} />
           <Route path="/result" element={<ResultDashboardPage />} />
+          <Route path="/result-demo" element={<ResultDashboardPage demo />} />
+          <Route path="/result-latest" element={<LatestResultPage />} />
         </Routes>
       </Router>
     </InterviewProvider>
