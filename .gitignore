@@ -29,6 +29,7 @@ __pycache__/
 node_modules/
 gta-frontend/node_modules/
 gta-frontend/dist/
+gta-frontend/certs/
 package-lock.json
 
 # Binaries

@@ -15,7 +15,6 @@ import { Layout } from '../components/layout/Layout';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ScoreBanner } from '../components/analytics/ScoreBanner';
-import { mockSessionResult } from '../data/mockSessionResult';
 
 const highlightClass = {
   high: 'border-red-200 bg-red-50 text-red-950',
@@ -32,7 +31,34 @@ const formatTime = (value = 0) => {
 
 const formatRange = (start, end) => `${formatTime(start)} - ${formatTime(end)}`;
 
-export const ResultDashboardPage = ({ demo = false, resultData = null }) => {
+const midPoint = (item) => {
+  const start = Number(item?.start ?? item?.time ?? 0);
+  const end = Number(item?.end ?? start);
+  return (start + end) / 2;
+};
+
+const buildQuestionSections = (sessionMeta, segments, changePoints) => {
+  const answers = sessionMeta?.answers || [];
+  return answers.map((answer) => {
+    const questionSegments = segments.filter((segment) => {
+      const point = midPoint(segment);
+      return point >= answer.start && point <= answer.end;
+    });
+    const questionHighlights = questionSegments.filter((segment) => segment.highlight !== 'none');
+    const questionChanges = changePoints.filter((point) => {
+      const time = Number(point.time || 0);
+      return time >= answer.start && time <= answer.end;
+    });
+    return {
+      ...answer,
+      segments: questionSegments,
+      highlights: questionHighlights,
+      changes: questionChanges,
+    };
+  });
+};
+
+export const ResultDashboardPage = ({ resultData = null }) => {
   const navigate = useNavigate();
   const { sessionData } = useInterview();
   const [openSegments, setOpenSegments] = useState({});
@@ -44,9 +70,7 @@ export const ResultDashboardPage = ({ demo = false, resultData = null }) => {
         score: 85,
         resultData,
       }
-    : demo
-      ? mockSessionResult
-      : sessionData;
+    : sessionData;
 
   if (activeSession.score === 0) {
     navigate('/');
@@ -63,6 +87,8 @@ export const ResultDashboardPage = ({ demo = false, resultData = null }) => {
   const focusWindows = insights.focus_windows || [];
   const habitPatterns = history.habit_summary?.patterns || [];
   const highlightedCount = highlightedSegments.length;
+  const frontendSession = rd.frontend_session || activeSession.multiQuestionSession;
+  const questionSections = buildQuestionSections(frontendSession, segments, changePoints);
 
   const toggleSegment = (id) => {
     setOpenSegments((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -197,6 +223,124 @@ export const ResultDashboardPage = ({ demo = false, resultData = null }) => {
             </div>
           )}
         </Card>
+
+        {questionSections.length > 0 && (
+          <Card className="p-6 border border-slate-100">
+            <div className="flex items-center gap-2 mb-5">
+              <MessageSquare className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-bold text-slate-900">질문별 리포트</h3>
+            </div>
+            <div className="space-y-5">
+              {questionSections.map((section) => (
+                <div key={`${section.index}-${section.question}`} className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-xs font-black text-primary mb-2">Q{section.index}</div>
+                      <h4 className="text-base font-black text-slate-900 leading-7">{section.question}</h4>
+                    </div>
+                    <div className="shrink-0 rounded-full bg-slate-50 border border-slate-200 px-3 py-1 text-xs font-bold text-slate-500">
+                      {formatRange(section.start, section.end)}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                      <div className="text-xs font-bold text-slate-400">답변 시간</div>
+                      <div className="text-sm font-black text-slate-900 mt-1">{formatTime(section.duration)}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                      <div className="text-xs font-bold text-slate-400">피드백 구간</div>
+                      <div className="text-sm font-black text-slate-900 mt-1">{section.highlights.length}개</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                      <div className="text-xs font-bold text-slate-400">상태 변화</div>
+                      <div className="text-sm font-black text-slate-900 mt-1">{section.changes.length}개</div>
+                    </div>
+                  </div>
+
+                  {section.highlights.length > 0 ? (
+                    <div className="mt-4 space-y-3">
+                      {section.highlights.map((segment) => {
+                        const isOpen = Boolean(openSegments[`q-${section.index}-${segment.id}`]);
+                        const details = segment.feedback_details || [];
+                        return (
+                          <div
+                            key={`${section.index}-${segment.id}`}
+                            className={`rounded-xl border ${highlightClass[segment.highlight] || highlightClass.none}`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleSegment(`q-${section.index}-${segment.id}`)}
+                              className="w-full p-4 text-left"
+                            >
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <p className="text-sm leading-relaxed font-medium">{segment.text}</p>
+                                <span className="shrink-0 text-xs font-bold text-slate-500">
+                                  {formatRange(segment.start, segment.end)}
+                                </span>
+                              </div>
+                              {segment.reasons?.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  {segment.reasons.map((reason) => (
+                                    <span
+                                      key={reason}
+                                      className="rounded-full bg-white/70 border border-current/10 px-3 py-1 text-xs font-bold"
+                                    >
+                                      {reason}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </button>
+                            {isOpen && details.length > 0 && (
+                              <div className="border-t border-current/10 bg-white/70 px-4 py-4 space-y-3">
+                                {details.map((detail, index) => (
+                                  <div key={`${section.index}-${segment.id}-${index}`} className="rounded-xl border border-slate-200 bg-white p-4">
+                                    <div className="text-sm font-black text-slate-900">{detail.title}</div>
+                                    <div className="mt-2 text-sm text-slate-600">
+                                      <span className="font-bold text-slate-800">근거: </span>
+                                      {detail.evidence}
+                                    </div>
+                                    <div className="mt-2 text-sm text-slate-600">
+                                      <span className="font-bold text-slate-800">피드백: </span>
+                                      {detail.feedback}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm text-slate-500">
+                      이 질문에서는 별도로 표시할 피드백 구간이 감지되지 않았습니다.
+                    </div>
+                  )}
+
+                  {section.changes.length > 0 && (
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                      <div className="text-xs font-black text-slate-400 mb-3">상태 변화 근거</div>
+                      <div className="space-y-3">
+                        {section.changes.slice(0, 3).map((point, index) => (
+                          <div key={`${section.index}-${point.kind}-${index}`} className="border-l-4 border-primary pl-4">
+                            <div className="text-sm font-black text-slate-900">
+                              {formatTime(point.time)} · {point.label}
+                            </div>
+                            {point.evidence && (
+                              <div className="text-sm text-slate-500 mt-1">{point.evidence}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="p-6 border border-slate-100">
